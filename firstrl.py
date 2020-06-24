@@ -5,22 +5,24 @@ import tcod
 # ######################################################################
 # Size of window
 FULLSCREEN = False
-SCREEN_WIDTH = 80  # characters wide
-SCREEN_HEIGHT = 50  # characters tall
-LIMIT_FPS = 20 # FPS limit
+SCREEN_WIDTH = 120  # characters wide
+SCREEN_HEIGHT = 70  # characters tall
+LIMIT_FPS = 20 # FPS limit if needed
 # Game Controls
 TURN_BASED = True  # turn-based game
 # Map dimension
-MAP_WIDTH = 80
-MAP_HEIGHT = 45
+MAP_WIDTH = 120
+MAP_HEIGHT = 65
 # Generator constants
-ROOM_MAX_SIZE = 10
-ROOM_MIN_SIZE = 6
+ROOM_MAX_SIZE = 20
+ROOM_MIN_SIZE = 15
 MAX_ROOMS = 30
-#FOV
+# FOV
 FOV_ALGO = 0 #deflault FOV algorithm
 FOV_LIGHT_WALLS = True
-TORCH_RADIUS = 10
+TORCH_RADIUS = 6
+# NPC
+MAX_ROOM_MONSTERS = 3
 
 
 # ######################################################################
@@ -142,6 +144,8 @@ def make_map():
                     create_v_tunnel(prev_y, new_y, new_x)
                     create_h_tunnel(prev_x, new_x, prev_y)
 
+            place_object(new_room) #add some contents to this room, such as monsters
+
             #finally, append the new room to the list
             rooms.append(new_room)
             num_rooms += 1
@@ -172,6 +176,35 @@ def create_v_tunnel(y1, y2, x):
     for y in range(min(y1, y2), max(y1, y2) + 1): #min/max used to determine smaller x cord, +1 to prevent exclusion of the last loop element
         map[x][y].blocked = False
         map[x][y].block_sight = False
+
+def place_object(room):
+    #choose random number of monsters
+    num_monsters = tcod.random_get_int(0, 0, MAX_ROOM_MONSTERS)
+
+    for i in range(num_monsters):
+        #choose monster spawn
+        x = tcod.random_get_int(0, room.x1, room.x2)
+        y = tcod.random_get_int(0, room.y1, room.y2)
+        choice = tcod.random_get_int(0, 0, 100)
+
+        if choice < 40: #80% chance of getting an orc
+            #create an orc
+            monster = Object(x, y, 'O', tcod.desaturated_green)
+        elif choice < 40+10:
+            #create a troll
+            monster = Object(x, y, 'T', tcod.darker_pink)
+        elif choice < 40+10+20:
+            #create an undead
+            monster = Object(x, y, 'U', tcod.grey)
+        elif choice < 40+10+20+20:
+            #create a warlock
+            monster = Object(x, y, 'W', tcod.black)
+        else:
+            #create a demon
+            monster = Object(x, y, 'D', tcod.lightest_red)
+
+        objects.append(monster)
+
 
 # ######################################################################
 # User Input
@@ -282,10 +315,7 @@ color_light_ground = tcod.Color(200, 180, 50)
 
 #Create player
 player = Object(0, 0, '@', tcod.white)
-#Create npc
-npc = Object(SCREEN_WIDTH // 2 - 5, SCREEN_HEIGHT // 2, '#', tcod.yellow)
-#Create list of objects
-objects = [npc, player]
+objects = [player]
  
 #Generate map
 make_map()
