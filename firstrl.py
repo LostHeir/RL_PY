@@ -22,7 +22,7 @@ FOV_ALGO = 0 #deflault FOV algorithm
 FOV_LIGHT_WALLS = True
 TORCH_RADIUS = 6
 # NPC
-MAX_ROOM_MONSTERS = 3
+MAX_ROOM_MONSTERS = 4
 
 
 # ######################################################################
@@ -31,15 +31,17 @@ MAX_ROOM_MONSTERS = 3
 class Object:
 #this is a generic object: the player, monster or an item
 #it's always represented by a charakter on screen
- def __init__(self, x, y, char, color):
+ def __init__(self, x, y, char, name, color, blocks=False):
     self.x = x
     self.y = y
-    self.char = char        
+    self.char = char 
+    self.name = name       
     self.color = color
+    self.blocks = blocks
 
  def move(self, dx, dy):
     #move by the given amount if the destination is not blocked
-    if not map[self.x + dx][self.y + dy].blocked:
+    if not is_blocked(self.x + dx, self.y + dy):
         self.x += dx
         self.y += dy
 
@@ -52,6 +54,17 @@ class Object:
     #erase the character taht represents this object
     tcod.console_put_char(cuck, self.x, self.y, ' ', tcod.BKGND_NONE)
 
+def is_blocked(x,y):
+    #test the map tile
+    if map[x][y].blocked:
+        return True
+
+    #check for any blocking objects
+    for object in objects:
+        if object.blocks and object.x == x and object.y == y:
+            return True
+
+    return False
 class Tile:
     #a tile of the map and its properties
     def __init__(self, blocked, block_sight = None):
@@ -187,23 +200,24 @@ def place_object(room):
         y = tcod.random_get_int(0, room.y1, room.y2)
         choice = tcod.random_get_int(0, 0, 100)
 
-        if choice < 40: #80% chance of getting an orc
-            #create an orc
-            monster = Object(x, y, 'O', tcod.desaturated_green)
-        elif choice < 40+10:
-            #create a troll
-            monster = Object(x, y, 'T', tcod.darker_pink)
-        elif choice < 40+10+20:
-            #create an undead
-            monster = Object(x, y, 'U', tcod.grey)
-        elif choice < 40+10+20+20:
-            #create a warlock
-            monster = Object(x, y, 'W', tcod.black)
-        else:
-            #create a demon
-            monster = Object(x, y, 'D', tcod.lightest_red)
+        if not is_blocked(x,y):
+            if choice < 40: #80% chance of getting an orc
+                #create an orc
+                monster = Object(x, y, 'O', 'Orc', tcod.desaturated_green, blocks=True)
+            elif choice < 40+10:
+                #create a troll
+                monster = Object(x, y, 'T', 'Troll', tcod.darker_pink, blocks=True)
+            elif choice < 40+10+20:
+                #create an undead
+                monster = Object(x, y, 'U', 'Undead', tcod.grey, blocks=True)
+            elif choice < 40+10+20+20:
+                #create a warlock
+                monster = Object(x, y, 'W', 'Warolock', tcod.black, blocks=True)
+            else:
+                #create a demon
+                monster = Object(x, y, 'D','Demon', tcod.lightest_red, blocks=True)
 
-        objects.append(monster)
+            objects.append(monster)
 
 
 # ######################################################################
@@ -229,24 +243,31 @@ def handle_keys():
         tcod.console_set_fullscreen(not tcod.console_is_fullscreen())
  
     elif key.vk == tcod.KEY_ESCAPE:
-        return True  # exit game
+        return 'exit'  # exit game
+    
+    # movement and combat only possible in playing game state
+    if game_state == 'playing':
+
+         # movement keys
+        if tcod.console_is_key_pressed(tcod.KEY_UP):
+            player.move(0,-1)
+            fov_recompute = True
  
-    # movement keys
-    if tcod.console_is_key_pressed(tcod.KEY_UP):
-        player.move(0,-1)
-        fov_recompute = True
+        elif tcod.console_is_key_pressed(tcod.KEY_DOWN):
+            player.move(0,1)
+            fov_recompute = True
  
-    elif tcod.console_is_key_pressed(tcod.KEY_DOWN):
-        player.move(0,1)
-        fov_recompute = True
+        elif tcod.console_is_key_pressed(tcod.KEY_LEFT):
+            player.move(-1,0)
+            fov_recompute = True
  
-    elif tcod.console_is_key_pressed(tcod.KEY_LEFT):
-        player.move(-1,0)
-        fov_recompute = True
- 
-    elif tcod.console_is_key_pressed(tcod.KEY_RIGHT):
-        player.move(1,0)
-        fov_recompute = True
+        elif tcod.console_is_key_pressed(tcod.KEY_RIGHT):
+            player.move(1,0)
+            fov_recompute = True
+        
+        # testing if turn was taken
+        else:
+            return 'turn_not_taken'
 
 # ######################################################################
 # Logic
@@ -314,7 +335,7 @@ color_dark_ground = tcod.Color(50,50,150)
 color_light_ground = tcod.Color(200, 180, 50)
 
 #Create player
-player = Object(0, 0, '@', tcod.white)
+player = Object(0, 0, '@','player', tcod.white, blocks=True)
 objects = [player]
  
 #Generate map
@@ -328,12 +349,14 @@ for y in range(MAP_HEIGHT):
 
 fov_recompute = True
 
+#Game status
+game_state = 'playing'
+player_action = None
+
 # #########
 # MAIN LOOP
 # #########
-
-exit_game = False
-while not tcod.console_is_window_closed() and not exit_game:
+while not tcod.console_is_window_closed():
 
     #draw all objects in the list
     render_all()
@@ -343,5 +366,7 @@ while not tcod.console_is_window_closed() and not exit_game:
     #erase all objects at thier old locations, before they move
     clear_all()
         
-    exit_game = handle_keys()
+    player_action = handle_keys()
+    if player_action == 'exit':
+        break
  
